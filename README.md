@@ -2,65 +2,6 @@
 
 Not permission to upload the complete code because its done under the Softwired Internship.
 
-
-Ran tool
-
-Ran tool
-
-Ran tool
-
-Read file: options-algotrader-be/README.md
-
-Read file: options-algotrader-be/backend/manage.py
-
-Ran tool
-
-Ran tool
-
-Ran tool
-
-Ran tool
-
-Ran tool
-
-Read file: options-algotrader-fe/options-algotrader-fe/README.md
-
-Read file: options-algotrader-be/backend/backend/settings.py
-
-Ran tool
-
-Read file: options-algotrader-fe/options-algotrader-fe/frontend/package.json
-
-Ran tool
-
-Read file: options-algotrader-be/backend/backend/urls.py
-
-Ran tool
-
-Read file: options-algotrader-be/backend/users/serializers.py
-
-Ran tool
-
-Read file: options-algotrader-fe/options-algotrader-fe/frontend/README.md
-
-Ran tool
-
-Read file: options-algotrader-be/backend/angelhq/models.py
-
-Ran tool
-
-Read file: options-algotrader-fe/options-algotrader-fe/frontend/src/constants.js
-
-Ran tool
-
-Read file: options-algotrader-fe/options-algotrader-fe/frontend/src/pages/Home.jsx
-
-
-
-
-Ran tool
-Below is a suggested top-level `README.md` to place at the root of your project. It covers both the Django back-end and the React/Vite front-end in detail. Feel free to adjust any paths, URLs or commands to match your exact setup.
-
 ```markdown
 # Options AlgoTrader
 
