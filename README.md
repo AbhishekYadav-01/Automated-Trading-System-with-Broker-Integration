@@ -63,7 +63,7 @@ It consists of:
 │ Back-end │
 │ Django REST + Celery + Redis + SQLite + AngelHQ + Strategy │
 └────────────────────────────────────────────────────────────────────┘
-```
+
 
 ### 1. High-Level Flow
 
@@ -156,7 +156,6 @@ Loop every X minutes (Beat)
   Beat->Celery: queue `evaluate_strategies`, `refresh_tokens`, `sync_symbols`
 Celery Workers->External API: Angel SmartAPI calls
 Workers->DB: update Account tokens, SymbolList, AlertResults
-```
 ---
 
 ## Prerequisites
