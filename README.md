@@ -110,17 +110,17 @@ It consists of:
 ## Architecture
 
 ```
-┌───────────────────┐                          ┌───────────────────┐
-│   TradingView     │ webhook/event →         │    Front-end      │
-│   / Chartink /    │                         │    React + Vite   │
-│   Custom Alerts   │                         │                   │
-└─────────┬─────────┘                         └─────────┬─────────┘
-          │                                            │
-          │ HTTP (JSON + JWT)                          │ HTTP (JSON + JWT)
-          ▼                                            ▼
+┌───────────────────┐ ┌───────────────────┐
+│ TradingView │ webhook/event → │ Front-end │
+│ / Chartink / │ │ React + Vite │
+│ Custom Alerts │ │ │
+└─────────┬─────────┘ └─────────┬─────────┘
+│ │
+│ HTTP (JSON + JWT) │ HTTP (JSON + JWT)
+▼ ▼
 ┌────────────────────────────────────────────────────────────────────┐
-│                             Back-end                              │
-│     Django REST + Celery + Redis + SQLite + AngelHQ + Strategy    │
+│ Back-end │
+│ Django REST + Celery + Redis + SQLite + AngelHQ + Strategy │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
