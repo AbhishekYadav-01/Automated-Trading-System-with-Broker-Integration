@@ -1,327 +1,188 @@
-# Automated-Trading-System-with-Broker-Integration
+# Automated Trading System with TradingView & Broker Integration
 
-Not permission to upload the complete code because its done under the Softwired Internship.
+> ⚠️ *Note: Due to internship confidentiality (Softwired), full source code is not publicly shared.*
 
-```markdown
-# Options AlgoTrader
+## Overview
 
-A full-stack web application to manage, automate and alert on options-trading strategies.  
-It consists of:
-- A Django REST back-end (with Celery, Redis & SQLite)  
-- A React/Vite front-end (with JWT auth, TradingView webhook management, account & order UIs)
+This project is an end-to-end **automated trading system** that bridges **TradingView** with a custom backend to integrate with a broker’s API. It includes real-time strategy execution via webhooks, a dynamic credential system, and a full-stack web dashboard. The entire infrastructure is **deployed on AWS**, with support for **paper trading** for testing.
 
 ---
 
 ## Table of Contents
 
-- [Features](#features)  
+- [Key Features](#key-features)  
 - [Architecture](#architecture)  
-- [Prerequisites](#prerequisites)  
-- [Installation](#installation)  
-- [Configuration](#configuration)  
-- [Running the Application](#running-the-application)  
-- [API Endpoints](#api-endpoints)  
-- [Project Structure](#project-structure)  
+- [Tech Stack](#tech-stack)  
+- [Setup Guide](#setup-guide)  
+- [Environment Configuration](#environment-configuration)  
+- [How It Works](#how-it-works)  
 - [Testing](#testing)  
-- [Contributing](#contributing)  
-- [License](#license)  
+- [Deployment](#deployment)  
+- [License](#license)
 
 ---
 
-## Features
+## Key Features
 
-### Back-end (Django)
-- JWT-based authentication (login / refresh tokens)  
-- User management (CRUD)  
-- Angel Broking SmartAPI account integration  
-- Symbol list fetcher & caching  
-- Scheduled tasks / alerts powered by Celery + Beat + Redis  
-- REST API (Django REST Framework) with built-in browsable API & admin UI
+### ✅ Strategy Integration
+- Pine Script strategies trigger live/paper trades using TradingView webhook alerts.
+- Webhook handler receives JSON payloads and executes orders via broker APIs.
 
-### Front-end (React / Vite)
-- JWT login flow (stores tokens in localStorage)  
-- Protected routes & navigation  
-- Manage users, accounts, orders & alerts via forms & tables  
-- Configure TradingView webhooks on the fly  
-- Toast notifications & modals for a fluid UX  
-- ESLint + Pre-configured Vite setup
+### ✅ Dynamic Credential Handling
+- Secure, runtime API token management for each user account.
+- Credential refresh and order validation handled via backend jobs.
+
+### ✅ Web Dashboard
+- Manage user accounts, orders, credentials, and TradingView alerts.
+- Built-in support for monitoring active strategies and system logs.
+
+### ✅ Paper Trading Support
+- Toggle between **real** and **simulated** (paper) trading mode for safe testing.
+- Separate handling logic ensures isolation of simulated trades.
+
+### ✅ Deployment
+- Fully deployed on **AWS EC2** using systemd and NGINX reverse proxy.
+- Redis, Celery, and Django work together to ensure scalable and fault-tolerant execution.
 
 ---
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    A[TradingView Alert] -->|Webhook| B[Backend API]
+    B --> C[Order Execution Logic]
+    B --> D[Celery Worker (async tasks)]
+    C --> E[Broker API (e.g. SmartAPI)]
+    D --> E
+    F[React Dashboard] --> B
+    B --> G[SQLite DB (Users, Orders, Alerts)]
+    H[AWS EC2 Instance] --> B
+    H --> D
 ```
-┌───────────────────┐ ┌───────────────────┐
-│ TradingView │ webhook/event → │ Front-end │
-│ / Chartink / │ │ React + Vite │
-│ Custom Alerts │ │ │
-└─────────┬─────────┘ └─────────┬─────────┘
-│ │
-│ HTTP (JSON + JWT) │ HTTP (JSON + JWT)
-▼ ▼
-┌────────────────────────────────────────────────────────────────────┐
-│ Back-end │
-│ Django REST + Celery + Redis + SQLite + AngelHQ + Strategy │
-└────────────────────────────────────────────────────────────────────┘
-
-
-### 1. High-Level Flow
-
-1. **User / TradingView**  
-   - A human or TradingView alert fires → hits a Back-end webhook  
-   - Or a user’s browser (React SPA) issues CRUD/API calls (with JWT)
-
-2. **Back-end (Django + DRF)**  
-   - Routes requests via `urls.py` → app-specific API views  
-   - `users` app handles registration, login, token refresh  
-   - `angelhq` app manages Angel Broking Account models & token refresh  
-   - `strategyalert` app defines alert models, serializers, webhook views
-
-3. **Async Task Layer (Celery + Beat)**  
-   - Redis as broker & result backend  
-   - **Celery workers** process:  
-     - TradingView webhook events  
-     - Scheduled strategy evaluations  
-     - Account token refresh & symbol fetching  
-   - **Beat scheduler** periodically enqueues tasks
-
-4. **Data Storage**  
-   - SQLite persists: Users, Accounts, Alerts, Orders, Symbol Lists  
-   - Django ORM used throughout
-
-5. **Front-end (React + Vite)**  
-   - SPA built with React, Vite dev server  
-   - JWT stored in `localStorage`, appended to Axios headers  
-   - React Router for protected routes  
-   - Components for User Management, Account Management, Orders, TradingView Webhooks  
-
-### 2. Component Breakdown
-
-#### Back-end
-
-- **Django Project**  
-  - `backend/`  
-    - `settings.py`: app registration, middleware, Celery + Redis config  
-    - `urls.py`: top-level URL routes  
-    - `celery.py`: Celery app initialization
-
-- **Apps**  
-  - `users/`  
-    - Custom JWT obtain/refresh views, user CRUD serializers & views  
-  - `angelhq/`  
-    - `models.py`: `Account` (SmartAPI credentials + tokens)  
-    - `tasks.py`: refresh tokens, fetch symbol lists  
-    - `api/urls.py`: REST endpoints for account management  
-  - `strategyalert/`  
-    - `models.py`: Alert definitions, Order models  
-    - `views.py`: webhook endpoints for TradingView alerts  
-    - `tasks.py`: core strategy logic (e.g. MACD crosses), order placement  
-
-- **Async & Caching**  
-  - **Redis**: broker + result backend for Celery  
-  - **Celery Beat**: schedules periodic tasks (token refresh, symbol refresh, strategy evals)
-
-#### Front-end
-
-- **Entry Points**  
-  - `main.jsx`: mounts `<App/>` inside Vite  
-  - `App.jsx`: defines routes, applies `<ProtectedRoute/>`
-
-- **Auth Context**  
-  - `authContext.jsx`: React Context for login state, token refresh logic
-
-- **API Layer**  
-  - `api.js`: Axios instance with interceptors for JWT, error handling
-
-- **Pages** (`src/pages`)  
-  - `Login.jsx`, `Home.jsx`, `Users.jsx`, `NotFound.jsx`
-
-- **Components** (`src/components`)  
-  - ***Shared***: `Navbar`, `ProtectedRoute`, `Form`, `LoadingIndicator`  
-  - ***User Mgmt***: `UserManager`, `UserList`, `UserForm`  
-  - ***Account Mgmt***: `AccountManager`, `AccountList`, `AccountForm`  
-  - ***Order Mgmt***: `OrderManager`, `OrderList`  
-  - ***Alert/Webhook Mgmt***: `TradingViewManager`, `TradingViewList`, `TradingViewForm`  
-
-### 3. Data & Event Sequence
-
-```sequence
-User/TVAlert->Front-end: HTTP (login / CRUD)
-Front-end->Back-end: /user/token/, /users/, /account/, /alert/
-Back-end->Django ORM: read/write models
-   alt webhook from TradingView
-     Back-end->Celery: queue `handle_webhook`
-   end
-Loop every X minutes (Beat)
-  Beat->Celery: queue `evaluate_strategies`, `refresh_tokens`, `sync_symbols`
-Celery Workers->External API: Angel SmartAPI calls
-Workers->DB: update Account tokens, SymbolList, AlertResults
----
-
-## Prerequisites
-
-- **Python** ≥ 3.10  
-- **Node.js** ≥ 16 (with npm or yarn)  
-- **Redis** (for Celery broker / result backend)  
-- Git
 
 ---
 
-## Installation
+## Tech Stack
 
-1. **Clone the repo**  
-   ```bash
-   git clone https://github.com/your-org/options-algotrader.git
-   cd options-algotrader
-   ```
-
-2. **Back-end setup**  
-   ```bash
-   cd options-algotrader-be/backend
-   python -m venv .venv
-   source .venv/bin/activate      # Linux/macOS
-   .venv\Scripts\activate         # Windows PowerShell
-
-   pip install --upgrade pip
-   pip install -r requirements.txt
-   ```
-
-3. **Front-end setup**  
-   ```bash
-   cd ../../options-algotrader-fe/options-algotrader-fe/frontend
-   npm install          # or yarn
-   ```
+| Layer          | Technology                     |
+|----------------|---------------------------------|
+| Front-End      | React (Vite), Axios, React Router |
+| Back-End       | Django REST Framework, Celery, Redis |
+| Broker API     | SmartAPI (Angel One)             |
+| Storage        | SQLite (development), Redis (cache/task queue) |
+| Hosting        | AWS EC2 (Linux), NGINX           |
+| DevOps         | systemd, `.env` secrets, SSH, Git |
 
 ---
 
-## Configuration
+## Setup Guide
 
-1. **Back-end `.env`**  
-   At `options-algotrader-be/backend`, create a `.env`:
-   ```dotenv
-   SECRET_KEY=<your-django-secret-key>
-   BACKEND_BASE_URL=http://localhost:8000
-   ```
-   - `SECRET_KEY`: Django secret  
-   - `BACKEND_BASE_URL`: Base URL for front-end to hit  
-
-2. **Front-end `.env`**  
-   In `options-algotrader-fe/options-algotrader-fe/frontend`, create `.env`:
-   ```dotenv
-   VITE_BACKEND_URL=http://localhost:8000
-   ```
-   Vite will expose this as `import.meta.env.VITE_BACKEND_URL`.
-
----
-
-## Running the Application
-
-### 1. Start Redis
+### 1. Clone the Repository
 ```bash
+git clone <private-repo-url>
+cd automated-trading-system
+```
+
+### 2. Backend Setup (Django)
+```bash
+cd backend/
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 3. Frontend Setup (React)
+```bash
+cd ../frontend/
+npm install
+```
+
+### 4. Start Services
+```bash
+# Redis
 redis-server
-```
 
-### 2. Migrate & Seed Database
-```bash
-# from options-algotrader-be/backend
+# Django
+cd ../backend/
 python manage.py migrate
-# (Optional) create superuser
-python manage.py createsuperuser
-```
-
-### 3. Start Celery Worker & Beat
-```bash
-# from options-algotrader-be/backend
-celery -A backend worker --loglevel=info
-celery -A backend beat  --loglevel=info
-```
-
-### 4. Run Django Server
-```bash
 python manage.py runserver
-```
 
-### 5. Run React Front-end
-```bash
-# from options-algotrader-fe/options-algotrader-fe/frontend
-npm run dev    # or yarn dev
-```
+# Celery worker
+celery -A backend worker --loglevel=info
+celery -A backend beat --loglevel=info
 
-Open your browser at [http://localhost:5173](http://localhost:5173) (or the port Vite reports).
+# React
+cd ../frontend/
+npm run dev
+```
 
 ---
 
-## API Endpoints
+## Environment Configuration
 
-| Path                         | Method | Description                                  |
-|------------------------------|--------|----------------------------------------------|
-| `/user/token/`               | POST   | Obtain JWT access & refresh tokens           |
-| `/user/token/refresh/`       | POST   | Refresh access token                         |
-| `/users/`                    | GET/POST | List users / create user                   |
-| `/users/<id>/`               | GET/PUT/DELETE | CRUD on a single user                 |
-| `/angelhq/api/...`           | *varies* | AngelHQ account & symbol APIs             |
-| `/alert/...`                 | *varies* | Strategy alert endpoints                   |
+### `.env` for Django (`backend/.env`)
+```dotenv
+SECRET_KEY=your-django-secret
+TRADING_MODE=paper   # or live
+BROKER_API_KEY=...
+BROKER_CLIENT_ID=...
+REDIS_URL=redis://localhost:6379
+```
 
-_For full list, check each app’s `urls.py` or visit the browsable API at `/`._
+### `.env` for React (`frontend/.env`)
+```dotenv
+VITE_BACKEND_URL=http://localhost:8000
+```
 
 ---
 
-## Project Structure
+## How It Works
 
-```
-/
-├─ options-algotrader-be/
-│   ├─ backend/                   # Django project
-│   │   ├─ settings.py
-│   │   ├─ urls.py
-│   │   ├─ celery.py
-│   │   └─ ...
-│   ├─ users/                     # User auth app
-│   ├─ angelhq/                   # Angel Broking API integration
-│   ├─ strategyalert/             # Strategy alert & tasks
-│   └─ manage.py
-│
-└─ options-algotrader-fe/
-    └─ options-algotrader-fe/
-        ├─ frontend/              # React + Vite SPA
-        │   ├─ src/
-        │   │   ├─ components/
-        │   │   ├─ pages/
-        │   │   └─ api.js
-        │   ├─ index.html
-        │   ├─ package.json
-        │   └─ vite.config.js
-        └─ README.md
-```
+1. **Strategy Trigger**:  
+   Pine Script on TradingView emits an alert with a JSON payload via webhook.
+
+2. **Webhook Receiver**:  
+   Django captures and authenticates the webhook, then pushes the task to Celery.
+
+3. **Order Processing**:  
+   Celery fetches credentials, validates symbol/order format, and places order via SmartAPI.
+
+4. **Paper Mode (Optional)**:  
+   Orders are simulated and logged instead of sent to the broker.
+
+5. **Dashboard**:  
+   Users can create/edit alerts, view order history, switch accounts, and manage sessions.
 
 ---
 
 ## Testing
 
-- **Back-end**  
-  ```bash
-  cd options-algotrader-be/backend
-  pytest   # or python manage.py test
-  ```
+### Backend
+```bash
+cd backend/
+pytest
+```
 
-- **Front-end**  
-  Add your preferred JS test runner (e.g. Jest, Vitest) as needed.
+### Frontend
+```bash
+cd frontend/
+npm run test
+```
 
 ---
 
-## Contributing
+## Deployment
 
-1. Fork this repository  
-2. Create a new branch (`git checkout -b feature/XYZ`)  
-3. Commit your changes  
-4. Submit a Pull Request  
-
-Please follow existing code style, add tests for new features, and update this README when necessary.
+- Deploy backend and frontend on **AWS EC2 Linux instance**
+- Use **NGINX** to reverse-proxy React and Django
+- Start backend services using **systemd** for persistent background execution
+- Store credentials securely in environment files or AWS Secrets Manager
 
 ---
 
 ## License
 
-This project is released under the [MIT License](LICENSE).  
-Feel free to use, modify and distribute.
-```
+This project is proprietary and developed under the **Softwired Internship**. Redistribution or disclosure of code is restricted.
+
+---
