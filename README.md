@@ -65,6 +65,98 @@ It consists of:
 └────────────────────────────────────────────────────────────────────┘
 ```
 
+### 1. High-Level Flow
+
+1. **User / TradingView**  
+   - A human or TradingView alert fires → hits a Back-end webhook  
+   - Or a user’s browser (React SPA) issues CRUD/API calls (with JWT)
+
+2. **Back-end (Django + DRF)**  
+   - Routes requests via `urls.py` → app-specific API views  
+   - `users` app handles registration, login, token refresh  
+   - `angelhq` app manages Angel Broking Account models & token refresh  
+   - `strategyalert` app defines alert models, serializers, webhook views
+
+3. **Async Task Layer (Celery + Beat)**  
+   - Redis as broker & result backend  
+   - **Celery workers** process:  
+     - TradingView webhook events  
+     - Scheduled strategy evaluations  
+     - Account token refresh & symbol fetching  
+   - **Beat scheduler** periodically enqueues tasks
+
+4. **Data Storage**  
+   - SQLite persists: Users, Accounts, Alerts, Orders, Symbol Lists  
+   - Django ORM used throughout
+
+5. **Front-end (React + Vite)**  
+   - SPA built with React, Vite dev server  
+   - JWT stored in `localStorage`, appended to Axios headers  
+   - React Router for protected routes  
+   - Components for User Management, Account Management, Orders, TradingView Webhooks  
+
+### 2. Component Breakdown
+
+#### Back-end
+
+- **Django Project**  
+  - `backend/`  
+    - `settings.py`: app registration, middleware, Celery + Redis config  
+    - `urls.py`: top-level URL routes  
+    - `celery.py`: Celery app initialization
+
+- **Apps**  
+  - `users/`  
+    - Custom JWT obtain/refresh views, user CRUD serializers & views  
+  - `angelhq/`  
+    - `models.py`: `Account` (SmartAPI credentials + tokens)  
+    - `tasks.py`: refresh tokens, fetch symbol lists  
+    - `api/urls.py`: REST endpoints for account management  
+  - `strategyalert/`  
+    - `models.py`: Alert definitions, Order models  
+    - `views.py`: webhook endpoints for TradingView alerts  
+    - `tasks.py`: core strategy logic (e.g. MACD crosses), order placement  
+
+- **Async & Caching**  
+  - **Redis**: broker + result backend for Celery  
+  - **Celery Beat**: schedules periodic tasks (token refresh, symbol refresh, strategy evals)
+
+#### Front-end
+
+- **Entry Points**  
+  - `main.jsx`: mounts `<App/>` inside Vite  
+  - `App.jsx`: defines routes, applies `<ProtectedRoute/>`
+
+- **Auth Context**  
+  - `authContext.jsx`: React Context for login state, token refresh logic
+
+- **API Layer**  
+  - `api.js`: Axios instance with interceptors for JWT, error handling
+
+- **Pages** (`src/pages`)  
+  - `Login.jsx`, `Home.jsx`, `Users.jsx`, `NotFound.jsx`
+
+- **Components** (`src/components`)  
+  - ***Shared***: `Navbar`, `ProtectedRoute`, `Form`, `LoadingIndicator`  
+  - ***User Mgmt***: `UserManager`, `UserList`, `UserForm`  
+  - ***Account Mgmt***: `AccountManager`, `AccountList`, `AccountForm`  
+  - ***Order Mgmt***: `OrderManager`, `OrderList`  
+  - ***Alert/Webhook Mgmt***: `TradingViewManager`, `TradingViewList`, `TradingViewForm`  
+
+### 3. Data & Event Sequence
+
+```sequence
+User/TVAlert->Front-end: HTTP (login / CRUD)
+Front-end->Back-end: /user/token/, /users/, /account/, /alert/
+Back-end->Django ORM: read/write models
+   alt webhook from TradingView
+     Back-end->Celery: queue `handle_webhook`
+   end
+Loop every X minutes (Beat)
+  Beat->Celery: queue `evaluate_strategies`, `refresh_tokens`, `sync_symbols`
+Celery Workers->External API: Angel SmartAPI calls
+Workers->DB: update Account tokens, SymbolList, AlertResults
+```
 ---
 
 ## Prerequisites
