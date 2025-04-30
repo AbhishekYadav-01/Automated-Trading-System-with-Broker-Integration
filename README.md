@@ -161,7 +161,7 @@ VITE_BACKEND_URL=http://localhost:8000
 ### Backend
 ```bash
 cd backend/
-pytest
+python manage.py runserver
 ```
 
 ### Frontend
@@ -174,8 +174,8 @@ npm run test
 
 ## Deployment
 
-- Deploy backend and frontend on **AWS EC2 Linux instance**
-- Use **NGINX** to reverse-proxy React and Django
+- Deployed backend and frontend on **AWS EC2 Linux instance**
+- Used **NGINX** to reverse-proxy React and Django
 - Start backend services using **systemd** for persistent background execution
 - Store credentials securely in environment files or AWS Secrets Manager
 
