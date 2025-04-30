@@ -48,7 +48,7 @@ This project is an end-to-end **automated trading system** that bridges **Tradin
 
 ## Architecture
 
-```mermaid
+```
 flowchart TD
     A[TradingView Alert] -->|Webhook| B[Backend API]
     B --> C[Order Execution Logic]
