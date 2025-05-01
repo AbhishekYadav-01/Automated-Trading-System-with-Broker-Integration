@@ -1,183 +1,224 @@
-# Automated Trading System  
-*Integrating TradingView Pine-Script Strategies → Custom Backend → Angel One (SmartAPI) Broker*  
+# Automated Trading System with TradingView & Angel One Integration
 
-> ⚠️ **Confidential (Softwired Internship)**  
-> Full source code is not publicly shared.  
+> **Note:** Full source code is proprietary under the Softwired Internship and is not publicly shared.
 
 ---
 
 ## Table of Contents
 
-1. [Project Overview](#project-overview)  
-2. [High-Level Workflow](#high-level-workflow)  
-3. [Core Features](#core-features)  
-4. [Architecture & Components](#architecture--components)  
-5. [Technology Stack](#technology-stack)  
-6. [Setup & Installation](#setup--installation)  
-7. [Environment Configuration](#environment-configuration)  
-8. [Detailed Usage Guide](#detailed-usage-guide)  
-   1. [1. Strategy Creation & Alerts (TradingView)](#1-strategy-creation--alerts-tradingview)  
-   2. [2. Webhook Link Configuration (Your Platform)](#2-webhook-link-configuration-your-platform)  
-   3. [3. Live Order Execution & Monitoring](#3-live-order-execution--monitoring)  
-   4. [4. Paper-Trading Mode](#4-paper-trading-mode)  
-   5. [5. Order History & Management](#5-order-history--management)  
-   6. [6. Bot Control (Start/Stop)](#6-bot-control-startstop)  
-9. [Testing](#testing)  
-10. [Deployment on AWS](#deployment-on-aws)  
-11. [Security Considerations](#security-considerations)  
-12. [License](#license)  
+- [Overview](#overview)  
+- [Workflow & Strategy Development](#workflow--strategy-development)  
+- [TradingView Integration](#tradingview-integration)  
+- [Backend Architecture](#backend-architecture)  
+  - [Broker (Angel One) Integration](#broker-angel-one-integration)  
+  - [User & Account Management](#user--account-management)  
+  - [Webhook Link Configuration](#webhook-link-configuration)  
+  - [Paper Trading Mode](#paper-trading-mode)  
+- [Live Monitoring & Order Execution](#live-monitoring--order-execution)  
+  - [WebSocket & Redis Price Feed](#websocket--redis-price-feed)  
+  - [Subscription Lifecycle](#subscription-lifecycle)  
+  - [Sell Conditions & Edge Cases](#sell-conditions--edge-cases)  
+  - [Bot Control (Start/Stop)](#bot-control-startstop)  
+- [Scheduling & End-of-Day Logic](#scheduling--end-of-day-logic)  
+- [Web Dashboard Features](#web-dashboard-features)  
+- [Tech Stack](#tech-stack)  
+- [Setup & Installation](#setup--installation)  
+- [Configuration & Environment Variables](#configuration--environment-variables)  
+- [Running Locally](#running-locally)  
+- [Testing](#testing)  
+- [Deployment on AWS](#deployment-on-aws)  
+- [Project Structure](#project-structure)  
+- [License](#license)  
 
 ---
 
-## Project Overview
+## Overview
 
-I’ve built an **end-to-end automated trading system** that:
+This project implements a fully automated trading system that:
 
-1. **Analyzes** the stock market with your custom strategy.  
-2. **Implements** it in Pine Script on TradingView to generate buy/sell alerts.  
-3. **Sends** those alerts via webhook to your backend.  
-4. **Executes** orders (live or paper) on Angel One through their SmartAPI.  
-5. **Monitors** live prices over WebSocket + Redis to handle stop-loss, targets, and trailing stops.  
-6. **Manages** everything via a React dashboard.  
-7. **Scales** reliably on AWS EC2 with systemd, NGINX, Redis, Celery, and Django.
-
----
-
-## High-Level Workflow
-
-```mermaid
-sequenceDiagram
-    participant TV as TradingView  
-    participant FE as React Dashboard  
-    participant BE as Django Backend  
-    participant WS as WebSocket (Redis Pub/Sub)  
-    participant API as Angel One SmartAPI  
-
-    TV->>BE: Webhook (strategy alert JSON)  
-    BE->>Celery: enqueue `handle_alert` task  
-    Celery->>BE: place buy order (live or simulated)  
-    BE->>WS: subscribe to live price updates  
-    WS->>BE: price update events  
-    BE->>BE: evaluate SL/TP/TS and send sell order when conditions met  
-    BE->>API: POST buy/sell orders  
-    FE->>BE: CRUD (users, accounts, webhooks)  
-    FE->>BE: start/stop bot  
-    BE->>FE: order history, logs, metrics  
-```
+1. **Develops and backtests** custom stock-market strategies in Pine Script on TradingView.  
+2. **Generates webhook alerts** for buy/sell signals (Put/Call).  
+3. **Receives alerts** via a secure backend, routes them to Celery for async processing.  
+4. **Executes orders** live on Angel One (via SmartAPI) or in “paper trading” mode for testing.  
+5. **Monitors positions** in real time using WebSocket and Redis.  
+6. **Handles sell logic** (stop-loss, target, trailing stop, end-of-day exit) with robust edge-case coverage.  
+7. **Provides a React dashboard** for management, history, and control (start/stop bot).  
+8. **Deploys** the entire stack on AWS EC2 with NGINX, systemd, and environment-based secrets.
 
 ---
 
-## Core Features
+## Workflow & Strategy Development
 
-- **Strategy → Pine Script**  
-  - Design any technical/statistical strategy for 2-min, 5-min, etc.  
-  - Add `alertcondition()` for PUT/CALL buy signals.  
-  - Configure custom JSON-formatted alert messages.
+1. **Strategy Creation & Analysis**  
+   - Define technical indicators, entry/exit rules in Pine Script.  
+   - Backtest across multiple timeframes (2 min, 5 min, etc.) to evaluate P&L, drawdowns.  
 
-- **Webhook Integration**  
-  - Paste generated webhook URL into TradingView.  
-  - Receive actionable JSON payloads in Django.
-
-- **Broker Connectivity (Angel One SmartAPI)**  
-  - Credentials:  
-    - `Smart API Client ID`  
-    - `API Key`  
-    - `Password`  
-    - `TOTP Token`  
-  - Automatic token refresh & error handling.
-
-- **User & Account Management**  
-  - Create users: `Username`, `Password`, `First Name`, `Last Name`.  
-  - Link multiple Angel One accounts per user.  
-
-- **Webhook Link Config**  
-  - Define for each link:  
-    - `Name`  
-    - `Account` (dropdown)  
-    - `Strategy` (dropdown)  
-    - `Stop-loss %`, `Target %`, `Trailing Stop %`  
-    - Paper Trading toggle  
-
-- **Live Monitoring & Order Logic**  
-  - Fetch live price via WebSocket & Redis Pub/Sub.  
-  - Subscribe on buy, unsubscribe on sell.  
-  - Compute SL/TP/TS in real time; auto-sell when hit.
-
-- **Paper Trading Mode**  
-  - Simulated P&L and order lifecycle without calling broker API.  
-  - Ideal for strategy back-testing and onboarding beginners.
-
-- **Bot Control**  
-  - **Start Bot**: begin accepting new alerts.  
-  - **Stop Bot**: finish pending orders, ignore new alerts.  
-
-- **Order History & Reports**  
-  - View, download (CSV/JSON), or delete past orders.  
-  - Detailed logs of each action, timestamps, and execution results.
+2. **Pine Script Alerts**  
+   - Embed `alertcondition()` calls for Put/Call buy signals.  
+   - Customize alert message format (JSON payload) including:  
+     ```json
+     {
+       "strategy": "MySuperTrend",
+       "symbol": "RELIANCE",
+       "action": "BUY_CALL",
+       "timestamp": "{{timenow}}"
+     }
+     ```
+   - Enable TradingView’s webhook URL feature to POST alerts to your backend.
 
 ---
 
-## Architecture & Components
+## TradingView Integration
+
+- **Webhook Configuration**  
+  - Paste your backend’s “Webhook Link” URL into TradingView alert dialog.  
+  - Ensure payload matches your backend’s expected JSON schema.  
+
+- **Strategy Filtering**  
+  - Multiple strategies may fire alerts simultaneously.  
+  - Each “Webhook Link” is tied to a specific strategy name.  
+  - Backend ignores alerts whose `strategy` field does not match the configured link.
+
+---
+
+## Backend Architecture
 
 ```mermaid
 flowchart LR
-  subgraph TradingView
-    TV[📈 Pine Script Alerts]
-  end
-
-  subgraph Frontend
-    FE[🌐 React Dashboard]
-  end
-
-  subgraph Backend
-    BE[🐍 Django REST API]
-    Cel[🚀 Celery Workers]
-    Redis[(🔴 Redis Broker)]
-    DB[(💾 SQLite)]
-    WS[🔄 WebSocket Service]
-  end
-
-  subgraph Broker
-    API[💼 Angel One SmartAPI]
-  end
-
-  subgraph AWS
-    EC2[(🖥️ EC2 Instance)]
-    NGINX[(🌐 NGINX / systemd)]
-  end
-
-  TV -->|webhook| BE
-  FE -->|REST| BE
-  BE -->|enqueue| Cel
-  Cel -->|exec orders| API
-  Cel -->|publish| WS
-  WS -->|sub updates| Cel
-  BE -->|DB read/write| DB
-  BE -->|cache| Redis
-  AWS --> BE
-  AWS --> Cel
-  AWS --> Redis
-  AWS --> NGINX
+    TV[TradingView Alert] -->|Webhook POST| API[Backend API]
+    API -->|Enqueue| Celery[Celery Worker]
+    Celery --> Broker[Angel One SmartAPI]
+    Celery --> Redis[Redis Pub/Sub]
+    Redis -->|Price Updates| Monitor[Live Monitor Service]
+    Monitor --> Celery
+    Monitor -->|Sell Order| Broker
 ```
+
+### Broker (Angel One) Integration
+
+- **SmartAPI Credentials**  
+  - **Client ID**  
+  - **API Key**  
+  - **Password**  
+  - **TOTP Token**  
+- Securely stored and rotated via Celery tasks.
+
+### User & Account Management
+
+- **User Fields:**  
+  | Field       | Description             |
+  |-------------|-------------------------|
+  | Username    | Unique login ID         |
+  | Password    | Hashed via Django       |
+  | First Name  | User’s first name       |
+  | Last Name   | User’s last name        |
+- **Account Linking:**  
+  - One user → One or more Angel One accounts.  
+  - Each account holds its own SmartAPI credentials.
+
+### Webhook Link Configuration
+
+| Field                   | Description                                                        |
+|-------------------------|--------------------------------------------------------------------|
+| **Name**                | Friendly identifier (e.g., “ST Trend Bot”)                         |
+| **Account**             | Select from linked Angel One accounts                              |
+| **Strategy**            | Strategy name (matches `strategy` in Pine Script alert payload)    |
+| **Stop-Loss (%)**       | Maximum allowable loss per trade                                   |
+| **Target (%)**          | Profit target per trade                                            |
+| **Trailing Stop (%)**   | Dynamic exit buffer                                               |
+| **Paper Trading**       | ☑️ Enable simulated orders (no real broker calls)                  |
+
+### Paper Trading Mode
+
+- **Simulation Only:**  
+  - Orders are **calculated** and **logged**, but **not** sent to Angel One.  
+  - Allows beginners to test strategies without capital risk.
 
 ---
 
-## Technology Stack
+## Live Monitoring & Order Execution
 
-| Layer        | Component                    |
-|--------------|------------------------------|
-| **Front-End**| React, Vite, Axios, React Router, JWT |
-| **Back-End** | Django, Django REST Framework, Celery, Redis |
-| **Broker API** | Angel One SmartAPI         |
-| **Real-Time**| WebSocket (Django Channels or custom), Redis Pub/Sub |
-| **Database** | SQLite (dev), Redis (cache & broker) |
-| **Deployment**| AWS EC2, NGINX, systemd, Git |
+### WebSocket & Redis Price Feed
+
+- **WebSocket Client** subscribes to live market data (exchange feed).  
+- **Redis Pub/Sub** broadcasts price updates to monitoring services.
+
+### Subscription Lifecycle
+
+1. **On Buy Execution:**  
+   - Subscribe to symbol’s price channel.  
+2. **Continuous Monitoring:**  
+   - Evaluate stop-loss/target/trailing conditions on each tick.  
+3. **On Sell Execution or Bot Stop:**  
+   - Unsubscribe from symbol to free resources.
+
+### Sell Conditions & Edge Cases
+
+- **Stop-Loss:** Immediate market sell when price ≤ entry × (1 – SL%).  
+- **Target:** Market sell when price ≥ entry × (1 + Target%).  
+- **Trailing Stop:** Adjust stop-loss upward as price moves in favor.  
+- **Edge Cases:**  
+  - **Flash crashes** (price gap)  
+  - **Re-quotes** or **order rejections**  
+  - **Partial fills** (track remaining quantity)  
+  - **API downtime** (retry logic)
+
+### Bot Control (Start/Stop)
+
+- **Stop Bot:**  
+  - Completes all **pending** orders.  
+  - **Ignores** new incoming alerts until restarted.  
+- **Start Bot:**  
+  - Resumes processing of fresh alerts.
+
+---
+
+## Scheduling & End-of-Day Logic
+
+- **Order List JSON Generation**  
+  - Daily Cron (via Celery Beat) compiles JSON of all open positions:  
+    ```json
+    [
+      {"symbol": "RELIANCE", "expiry": "2025-05-08", "strike": 2450},
+      …
+    ]
+    ```
+- **3:29 PM Close Routine**  
+  - Market closes at 3:30 PM IST.  
+  - At 3:29 PM, check all open positions:  
+    - If **in profit**, keep overnight.  
+    - If **not in profit**, force-sell to cut losses.
+
+---
+
+## Web Dashboard Features
+
+- **Dashboard Views:**  
+  - **Active Orders** (live & paper)  
+  - **Order History** (with Download & Delete options)  
+  - **Account & Credential Management**  
+  - **Webhook Links** (CRUD)  
+  - **Bot Status** (Start/Stop toggle)  
+  - **System Logs** (task outcomes, errors)
+
+---
+
+## Tech Stack
+
+| Layer        | Technology                                  |
+|--------------|----------------------------------------------|
+| Front-End    | React, Vite, Axios, React Router             |
+| Back-End     | Django REST Framework, Celery, Redis         |
+| Broker API   | Angel One SmartAPI                           |
+| Data Store   | SQLite (dev), Redis (cache & pub/sub)        |
+| Hosting      | AWS EC2 (Ubuntu), NGINX, systemd             |
+| CI/CD        | Git (private repo), GitHub Actions (optional)|
 
 ---
 
 ## Setup & Installation
 
-1. **Clone the repo**  
+1. **Clone Repo**  
    ```bash
    git clone <private-repo-url>
    cd automated-trading-system
@@ -188,7 +229,6 @@ flowchart LR
    cd backend/
    python3 -m venv venv
    source venv/bin/activate
-   pip install --upgrade pip
    pip install -r requirements.txt
    ```
 
@@ -198,133 +238,58 @@ flowchart LR
    npm install
    ```
 
-4. **Start Local Services**  
-   ```bash
-   # Terminal 1: Redis
-   redis-server
-
-   # Terminal 2: Django + Migrations
-   cd backend/
-   python manage.py migrate
-   python manage.py createsuperuser  # if needed
-   python manage.py runserver
-
-   # Terminal 3: Celery & Beat
-   cd backend/
-   celery -A backend worker --loglevel=info
-   celery -A backend beat  --loglevel=info
-
-   # Terminal 4: React Dev Server
-   cd ../frontend/
-   npm run dev
-   ```
-   - Backend API at `http://localhost:8000/`  
-   - Frontend at `http://localhost:5173/`
-
 ---
 
-## Environment Configuration
+## Configuration & Environment Variables
 
-### `backend/.env`
+### Backend (`backend/.env`)
+
 ```dotenv
-# Django
-SECRET_KEY=<your-django-secret>
-
-# Broker (Angel One SmartAPI)
-SMARTAPI_CLIENT_ID=<your-client-id>
-SMARTAPI_API_KEY=<your-api-key>
-SMARTAPI_PASSWORD=<your-password>
-SMARTAPI_TOTP=<your-totp-secret>
-
-# Redis
+SECRET_KEY=…
+TRADING_MODE=paper       # or live
+BROKER_CLIENT_ID=…
+BROKER_API_KEY=…
+BROKER_PASSWORD=…
+BROKER_TOTP_SECRET=…
 REDIS_URL=redis://localhost:6379/0
-
-# Trading Mode
-TRADING_MODE=live   # or 'paper'
 ```
 
-### `frontend/.env`
+### Frontend (`frontend/.env`)
+
 ```dotenv
 VITE_BACKEND_URL=http://localhost:8000
 ```
 
 ---
 
-## Detailed Usage Guide
+## Running Locally
 
-### 1. Strategy Creation & Alerts (TradingView)
+```bash
+# Start Redis
+redis-server
 
-1. Write your strategy in Pine Script, e.g. on a 2-min or 5-min chart.  
-2. Add `alertcondition()` calls for **PUT/CALL** buy signals.  
-3. Define your **JSON alert format** under Alerts → Create Alert → “Webhook URL” + “Message” fields.  
-4. Paste your platform’s generated webhook URL (see below) into the “Webhook URL” field.
+# Backend
+cd backend/
+python manage.py migrate
+python manage.py runserver
+celery -A backend worker --loglevel=info &
+celery -A backend beat --loglevel=info &
 
----
-
-### 2. Webhook Link Configuration (Your Platform)
-
-On your React dashboard:
-
-1. **Create Account**  
-   - Enter `Username`, `Password`, `First Name`, `Last Name`.  
-2. **Link Angel One Broker**  
-   - Provide `SmartAPI Client ID`, `API Key`, `Password`, `TOTP Token`.  
-3. **Create Webhook**  
-   - **Name**: e.g. “My 2-Min Strategy”  
-   - **Account**: select linked broker account  
-   - **Strategy**: select the corresponding Pine Script strategy  
-   - **Stop-Loss %**, **Target %**, **Trailing Stop %**  
-   - **Paper Trading**: ✅ or ❌  
-4. **Copy Webhook URL** and paste into TradingView alerts.
-
----
-
-### 3. Live Order Execution & Monitoring
-
-1. **Alert Received** → Django captures JSON, enqueues `handle_alert`.  
-2. **Buy Order**  
-   - Celery task loads broker credentials, places `BUY` (PUT or CALL).  
-   - On success: subscribe to live price channel in Redis.  
-3. **Monitor Live Price**  
-   - WebSocket/Redis pushes every price tick.  
-   - Evaluate SL/TP/TS rules: if any condition met → place `SELL`.  
-   - On sell: unsubscribe from that price channel.  
-
----
-
-### 4. Paper-Trading Mode
-
-- If **Paper Trading** is ✓:  
-  - All calculations run in Python.  
-  - No API calls to Angel One.  
-  - P&L and order lifecycles simulated and stored for review.
-
----
-
-### 5. Order History & Management
-
-- **View History**: filter by date, strategy, account.  
-- **Download**: CSV or JSON export of all orders.  
-- **Delete**: bulk-delete older records when needed.  
-
----
-
-### 6. Bot Control (Start/Stop)
-
-- **Start Bot**: toggles acceptance of new alerts → enqueues tasks.  
-- **Stop Bot**: finishes processing pending orders → ignores new alerts.  
-- Useful for pausing live trading without disabling webhook links.
+# Frontend
+cd ../frontend/
+npm run dev
+```
 
 ---
 
 ## Testing
 
-- **Backend**  
+- **Backend Tests**  
   ```bash
   cd backend/
   pytest
   ```
-- **Frontend**  
+- **Frontend Tests**  
   ```bash
   cd frontend/
   npm run test
@@ -334,30 +299,41 @@ On your React dashboard:
 
 ## Deployment on AWS
 
-1. **Provision EC2** (Amazon Linux 2 or Ubuntu).  
-2. **Install**: Git, Python 3.10+, Node.js 16+, Redis.  
-3. **Clone** repo, set up virtualenv & npm.  
-4. **Configure** environment variables (`.env`) or AWS Secrets Manager.  
-5. **NGINX**  
-   - Reverse-proxy `/api` → Django (gunicorn).  
-   - Serve static React build.  
-6. **systemd** services  
-   - `gunicorn` (Django), `celery`, `celery-beat`, `redis-server`.  
-7. **Start** all services; set to auto-restart.  
-8. **SSL**: configure Let’s Encrypt via Certbot.
+1. **Provision EC2 (Ubuntu)**  
+2. **Install Dependencies** (Python, Node.js, Redis, NGINX)  
+3. **Clone & Build** the repo  
+4. **Configure NGINX** reverse proxy to serve React and Django  
+5. **Create systemd services** for:  
+   - `gunicorn` (Django)  
+   - `celery-worker` & `celery-beat`  
+   - `react-app` (if built)  
+6. **Environment Variables** via `/etc/profile.d/` or AWS Secrets Manager  
+7. **Enable & Start** services  
+8. **Open Ports** (80, 443 for HTTPS)
 
 ---
 
-## Security Considerations
+## Project Structure
 
-- **Store secrets** in AWS Secrets Manager or encrypted `.env`.  
-- **Use HTTPS** for all webhook URLs & dashboard.  
-- **Rotate** SmartAPI credentials regularly.  
-- **Audit logs** for all order executions.
+```
+/
+├── backend/
+│   ├── backend/          # Django project
+│   ├── users/            # User & auth
+│   ├── broker/           # Angel One SmartAPI integration
+│   ├── strategies/       # Webhook & tasks
+│   ├── celery.py
+│   ├── manage.py
+│   └── requirements.txt
+└── frontend/
+    ├── public/
+    ├── src/              # React app
+    ├── vite.config.js
+    └── package.json
+```
 
 ---
 
 ## License
 
-This codebase is **proprietary** under the **Softwired Internship**.  
-Unauthorized distribution or disclosure is prohibited.
+Proprietary—developed under **Softwired Internship**. Redistribution or disclosure of code is restricted.
