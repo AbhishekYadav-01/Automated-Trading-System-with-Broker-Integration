@@ -1,5 +1,3 @@
-Here’s a **super, extremely detailed** `README.md` that captures every part of your end-to-end system—from strategy design in TradingView through live order execution on Angel One and paper trading, all the way to AWS deployment.
-
 ---
 
 # Automated Trading System  
