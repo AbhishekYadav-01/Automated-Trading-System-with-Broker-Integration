@@ -1,5 +1,3 @@
----
-
 # Automated Trading System  
 *Integrating TradingView Pine-Script Strategies → Custom Backend → Angel One (SmartAPI) Broker*  
 
