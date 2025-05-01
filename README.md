@@ -8,6 +8,109 @@ Our project is an end-to-end automated trading platform designed to take a custo
 Once an alert arrives at our backend, it is authenticated and immediately handed off to a Celery worker for asynchronous processing. The worker retrieves the appropriate user’s Angel One SmartAPI credentials (Client ID, API Key, password, and TOTP token), validates the message against the strategy configured for that webhook link, and places either a real order on the broker or simulates it entirely in paper-trading mode. Simultaneously, our system establishes a live market-data subscription over WebSocket, broadcasting price updates via Redis Pub/Sub so that every tick can be evaluated against stop-loss, profit-target, and trailing-stop rules. When any of those conditions are met, the worker issues the corresponding sell order and tears down the subscription, ensuring that each position’s lifecycle is managed cleanly.
 
 Beyond simple execution, the platform addresses numerous edge cases—partial fills, API downtime, flash crashes, and market-close behavior. Every day at 3:29 PM IST, a scheduled job inspects all open positions: profitable trades are held overnight, while losing positions are closed to limit risk. Users interact with a React-based dashboard where they can create and manage accounts, configure webhook links tied to specific strategies, toggle paper trading on or off, and start or stop the automated “bot,” which drains pending orders but ignores any new alerts until reactivated. Finally, the entire application stack—Django REST API, Celery workers, Redis, React frontend—is deployed on AWS EC2 behind NGINX with systemd service managers, providing a scalable, fault-tolerant environment for real-time, algorithmic trading.
+Automated Trading System
+├─ 1. Strategy Development
+│   ├─ Define technical indicators & rules
+│   ├─ Backtest on multiple timeframes (2m, 5m, …)
+│   └─ Implement in Pine Script
+│       ├─ alertcondition() for BUY_CALL / SELL_PUT
+│       └─ JSON payload fields:
+│           ├─ strategy
+│           ├─ symbol
+│           ├─ action
+│           └─ timestamp
+│
+├─ 2. TradingView Setup
+│   ├─ Create alerts in TradingView
+│   ├─ Paste “Webhook URL” from dashboard
+│   └─ Ensure JSON schema matches backend expectations
+│
+├─ 3. Web Dashboard Configuration
+│   ├─ User & Account Management
+│   │   ├─ Register user (username, password, first/last name)
+│   │   └─ Link Angel One account (Client ID, API Key, Password, TOTP)
+│   ├─ Webhook Link Definition
+│   │   ├─ Name
+│   │   ├─ Select Account
+│   │   ├─ Strategy (must match payload)
+│   │   ├─ Stop-Loss %, Target %, Trailing-Stop %
+│   │   └─ Paper-Trading toggle
+│   └─ Dashboard Features
+│       ├─ View live & historical orders
+│       ├─ Download / delete history
+│       ├─ Start / Stop bot control
+│       └─ System logs & status
+│
+├─ 4. Alert Reception & Processing
+│   ├─ Webhook endpoint receives JSON POST
+│   ├─ Authenticate & validate strategy
+│   ├─ Enqueue task to Celery worker
+│   └─ Respond <200 ms to TradingView
+│
+├─ 5. Order Execution
+│   ├─ Credential Retrieval
+│   │   └─ Fetch & refresh SmartAPI tokens if needed
+│   ├─ Live vs. Paper Mode
+│   │   ├─ Live → place real order via SmartAPI
+│   │   └─ Paper → simulate & log only
+│   ├─ On BUY execution:
+│   │   ├─ Record entry price & quantity
+│   │   └─ Subscribe to live price feed
+│   └─ On SELL execution:
+│       ├─ Place market sell (or simulate)
+│       └─ Unsubscribe from price feed
+│
+├─ 6. Real-Time Monitoring
+│   ├─ WebSocket client → exchange feed
+│   ├─ Redis Pub/Sub → broadcast ticks
+│   └─ Evaluate each tick for:
+│       ├─ Stop-Loss condition
+│       ├─ Target condition
+│       └─ Trailing-Stop adjustment
+│
+├─ 7. Edge-Case & Error Handling
+│   ├─ Partial fills → track remaining qty
+│   ├─ API downtime → retry with backoff
+│   ├─ Flash crashes & price gaps → fail-safe logic
+│   └─ Duplicate alerts → idempotent processing
+│
+├─ 8. End-of-Day Routine (3:29 PM IST)
+│   ├─ Celery Beat schedules EOD job
+│   ├─ Compile open positions JSON:
+│   │   [{"symbol","expiry","strike"}, …]
+│   ├─ For each position:
+│   │   ├─ If profit → hold overnight
+│   │   └─ If loss   → force-sell immediately
+│   └─ Save EOD report/log
+│
+├─ 9. Bot Control
+│   ├─ Stop Bot → finish pending, ignore new alerts
+│   └─ Start Bot → resume processing new alerts
+│
+├─10. Data Persistence & Reporting
+│   ├─ Database stores:
+│   │   ├─ Users, Accounts
+│   │   ├─ Webhook Links
+│   │   ├─ Orders (live & paper)
+│   │   └─ System Logs
+│   └─ Dashboard CSV export & delete functions
+│
+├─11. Tech Stack
+│   ├─ Front-End: React, Vite, Axios, React Router
+│   ├─ Back-End: Django REST, Celery, Redis
+│   ├─ Broker API: Angel One SmartAPI
+│   ├─ Data Stores: SQLite (dev), Redis (cache & Pub/Sub)
+│   └─ Deployment: AWS EC2 (Ubuntu), NGINX, Gunicorn, systemd
+│
+└─12. Deployment & Scaling
+    ├─ Provision EC2 instance(s)
+    ├─ Install & configure NGINX reverse proxy
+    ├─ Set up systemd services:
+    │   ├─ Gunicorn (Django)
+    │   ├─ Celery worker & beat
+    │   └─ Redis (optional)
+    ├─ Manage secrets via .env or AWS Secrets Manager
+    └─ Scale Celery horizontally; monitor logs & metrics
 
 ## Table of Contents
 
