@@ -31,7 +31,7 @@
 
 ## Project Overview
 
-You’ve built an **end-to-end automated trading system** that:
+I’ve built an **end-to-end automated trading system** that:
 
 1. **Analyzes** the stock market with your custom strategy.  
 2. **Implements** it in Pine Script on TradingView to generate buy/sell alerts.  
