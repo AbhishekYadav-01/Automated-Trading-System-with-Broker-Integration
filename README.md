@@ -115,7 +115,7 @@ Automated Trading System
     │   └─ Redis (optional)
     ├─ Manage secrets via .env or AWS Secrets Manager
     └─ Scale Celery horizontally; monitor logs & metrics
-
+```
 ## Table of Contents
 
 - [Overview](#overview)  
