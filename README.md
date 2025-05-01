@@ -8,6 +8,10 @@ Our project is an end-to-end automated trading platform designed to take a custo
 Once an alert arrives at our backend, it is authenticated and immediately handed off to a Celery worker for asynchronous processing. The worker retrieves the appropriate user’s Angel One SmartAPI credentials (Client ID, API Key, password, and TOTP token), validates the message against the strategy configured for that webhook link, and places either a real order on the broker or simulates it entirely in paper-trading mode. Simultaneously, our system establishes a live market-data subscription over WebSocket, broadcasting price updates via Redis Pub/Sub so that every tick can be evaluated against stop-loss, profit-target, and trailing-stop rules. When any of those conditions are met, the worker issues the corresponding sell order and tears down the subscription, ensuring that each position’s lifecycle is managed cleanly.
 
 Beyond simple execution, the platform addresses numerous edge cases—partial fills, API downtime, flash crashes, and market-close behavior. Every day at 3:29 PM IST, a scheduled job inspects all open positions: profitable trades are held overnight, while losing positions are closed to limit risk. Users interact with a React-based dashboard where they can create and manage accounts, configure webhook links tied to specific strategies, toggle paper trading on or off, and start or stop the automated “bot,” which drains pending orders but ignores any new alerts until reactivated. Finally, the entire application stack—Django REST API, Celery workers, Redis, React frontend—is deployed on AWS EC2 behind NGINX with systemd service managers, providing a scalable, fault-tolerant environment for real-time, algorithmic trading.
+
+# Automated Trading System
+
+```text
 Automated Trading System
 ├─ 1. Strategy Development
 │   ├─ Define technical indicators & rules
